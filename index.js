@@ -1,19 +1,20 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { pinyin } from 'pinyin';
-
-const dateTag = getDateTag();
+import { simplify, pinyinify } from 'hanzi-tools';
 
 const getDateTag = () => {
   const now = new Date();
   const year = now.getFullYear().toString();
   const month = (now.getMonth() + 1).toString().padStart(2, '0');
   const day = now.getDate().toString().padStart(2, '0');
-  return `copypaste_${year}${month}${day}`;
+  return `copypaste_${year}${month}${day}_${Date.now()}`;
 };
+// call it so the file has access to a consistent date tag
+const dateTag = getDateTag();
 
 const endMarkerIndex = (list) => {
+  console.log('list....', list);
   const endItemIndex = list.findIndex((element) => {
     const trunc = element.slice(0, 3);
     if (trunc.includes('end')) return true;
@@ -40,6 +41,7 @@ const buildFlashcardFields = async (list) => {
   }
 
   console.log(newCards);
+  // only allow on cloze deletion per card for now
   const strArray = Promise.all(
     newCards.map(async (el) => {
       const flashcardArr = el.split('|');
@@ -52,37 +54,19 @@ const buildFlashcardFields = async (list) => {
       if (hanziMatchIndex) {
         clozeSentence = sentence.replace(word, `{{c1::${word}}}`);
       }
-      console.log({ clozeSentence });
 
-      const pinyinArr = pinyin(sentence, { segment: true, group: true });
-      const pinyinSentence = pinyinArr
-        .reduce((acc, curr) => {
-          if (Array.isArray(curr)) {
-            return acc + curr[0] + ' ';
-          }
-          return acc + curr + ' ';
-        }, '')
-        .trim();
-      console.log(pinyinSentence);
-      const pinyinWordArr = pinyin(word, { segment: true, group: true });
-      const pinyinWord = pinyinWordArr
-        .reduce((acc, curr) => {
-          if (Array.isArray(curr)) {
-            return acc + curr[0] + ' ';
-          }
-          return acc + curr + ' ';
-        }, '')
-        .trim();
-      console.log({ pinyinWord });
+      const simplifiedSentence = simplify(sentence);
+      const pinyinified = pinyinify(simplifiedSentence, true);
+      const { pinyinSegments } = pinyinified;
+      const simplifiedWord = simplify(word);
+      const pinyinWord = pinyinify(simplifiedWord);
 
-      const pinyinMatchIndex = pinyinSentence.indexOf(pinyinWord) !== -1;
-      let clozePinyin;
-      if (pinyinMatchIndex) {
-        clozePinyin = pinyinSentence.replace(
-          pinyinWord,
-          `{{c1::${pinyinWord}}}`
-        );
+      const pinyinMatchIndex = pinyinSegments.indexOf(pinyinWord);
+      if (pinyinMatchIndex !== -1) {
+        pinyinSegments[pinyinMatchIndex] = `{{c1::${pinyinWord}}}`;
       }
+      const clozePinyin = pinyinSegments.join(' ').trim();
+      console.log({ clozeSentence, pinyinWord, pinyinSegments, clozePinyin });
       return `${clozeSentence} | ${clozePinyin} | ${translation} | ${dateTag}`;
     })
   );
@@ -109,14 +93,10 @@ const openCSVToArray = async (fileName) => {
 };
 
 const main = async () => {
-  // const fileName = path.join(
-  //   os.homedir(),
-  //   'Documents/Taiwan/Chinese/Copy-Paste-Chinese-Course/',
-  //   `sentence_flashcards.csv`
-  // );
   const fileName = `sentence_flashcards.csv`;
   const wordList = await openCSVToArray(fileName);
   const newCards = await buildFlashcardFields(wordList);
+  console.log(wordList, '\n\n', newCards);
   if (newCards) {
     try {
       const newCardsFile = path.join(
@@ -126,14 +106,16 @@ const main = async () => {
       );
       writeToCSV(newCards, newCardsFile);
     } catch (err) {
-      console.error(err);
+      console.error('error writing new cards file:', err);
       return;
     }
   }
   try {
+    // IF the new list succeeds to save to a new file
+    // THEN add a new 'end' marker to the original file
     const endItemIndex = endMarkerIndex(wordList);
     if (endItemIndex !== -1) {
-      list.splice(endItemIndex, 1); // remove existing 'end' marker
+      wordList.splice(endItemIndex, 1); // remove existing 'end' marker
     }
     wordList.pop(); // remove last empty line
     wordList.push(`end||`);
@@ -142,13 +124,6 @@ const main = async () => {
     console.log('Failed to add end marker to original file');
     console.error(err);
   }
-
-  // after writing new file
-  // save the new list to a new file
-  // IF the new list succeeds to save
-  // THEN add a new 'end' marker to the original file
-
-  // writeToCSV(stringList);
 };
 
 main();

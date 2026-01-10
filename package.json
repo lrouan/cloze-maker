@@ -13,6 +13,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "pinyin": "^4.0.0"
+    "hanzi-tools": "^1.2.26"
   }
 }
