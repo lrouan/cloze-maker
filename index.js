@@ -14,7 +14,6 @@ const getDateTag = () => {
 const dateTag = getDateTag();
 
 const endMarkerIndex = (list) => {
-  console.log('list....', list);
   const endItemIndex = list.findIndex((element) => {
     const trunc = element.slice(0, 3);
     if (trunc.includes('end')) return true;
@@ -31,8 +30,14 @@ const getNewFlashcardDeck = (list) => {
 };
 
 const buildFlashcardFields = async (list) => {
-  list.pop(); // remove last empty line
-  list.shift(); // remove header
+  console.log('list....', list);
+  const lastIndex = list.length - 1;
+  if (list[lastIndex] === '') {
+    list.pop(); // remove last empty line
+  }
+  if (list[0][0] === 'Word') {
+    list.shift(); // remove header
+  }
   const newCards = getNewFlashcardDeck(list);
   // handle case if no new cards found
   if (newCards.length === 0) {
@@ -40,11 +45,12 @@ const buildFlashcardFields = async (list) => {
     return;
   }
 
-  console.log(newCards);
+  console.log('newcards', newCards);
   // only allow on cloze deletion per card for now
   const strArray = Promise.all(
     newCards.map(async (el) => {
       const flashcardArr = el.split('|');
+      console.log(flashcardArr);
       const word = flashcardArr[0].trim();
       const sentence = flashcardArr[1].trim();
       const translation = flashcardArr[2].trim();
@@ -58,16 +64,16 @@ const buildFlashcardFields = async (list) => {
       const simplifiedSentence = simplify(sentence);
       const pinyinified = pinyinify(simplifiedSentence, true);
       const { pinyinSegments } = pinyinified;
-      const simplifiedWord = simplify(word);
-      const pinyinWord = pinyinify(simplifiedWord);
+      // const simplifiedWord = simplify(word);
+      // const pinyinWord = pinyinify(simplifiedWord);
 
-      const pinyinMatchIndex = pinyinSegments.indexOf(pinyinWord);
-      if (pinyinMatchIndex !== -1) {
-        pinyinSegments[pinyinMatchIndex] = `{{c1::${pinyinWord}}}`;
-      }
-      const clozePinyin = pinyinSegments.join(' ').trim();
-      console.log({ clozeSentence, pinyinWord, pinyinSegments, clozePinyin });
-      return `${clozeSentence} | ${clozePinyin} | ${translation} | ${dateTag}`;
+      // const pinyinMatchIndex = pinyinSegments.indexOf(pinyinWord);
+      // if (pinyinMatchIndex !== -1) {
+      //   pinyinSegments[pinyinMatchIndex] = `{{c1::${pinyinWord}}}`;
+      // }
+      const pinyin = pinyinSegments.join(' ').trim();
+      // console.log({ clozeSentence, pinyinSegments, pinyin });
+      return `${clozeSentence} | ${pinyin} | ${translation} | ${dateTag}`;
     })
   );
   return strArray;
@@ -140,10 +146,10 @@ Examples:
 
 OUTPUT:
 Fields:
-Word | Sentence | Pinyin | Translation | Tags
+Sentence | Pinyin | Translation | Tags
 
 Examples:
-幾 | 你今年幾歲？ | nǐ jīnnián jǐ suì? | How old are you this year? | copypaste_w1
+你今年{{c1::幾歲}}？ | nǐ jīnnián jǐ suì? | How old are you this year? | copypaste_w1
 
 Example cloze deletion fields:
 Hanzi Sentence: 
